@@ -1,8 +1,9 @@
 package com.github.krupt.jsonrpc.swagger
 
 import com.github.krupt.jsonrpc.JsonRpcMethod
-import com.google.common.base.Optional
 import org.springframework.core.annotation.AnnotationUtils
+import java.util.*
+import kotlin.reflect.full.functions
 
 class JsonRpcMethodRequestHandler(
     basePath: String,
@@ -12,15 +13,15 @@ class JsonRpcMethodRequestHandler(
     basePath,
     fullMethodName.split('.').first(),
     fullMethodName,
-    instance.javaClass.methods.first {
-        it.name == "invoke" && !it.isBridge && !it.isSynthetic
+    instance::class.functions.first {
+        it.name == "invoke"
     }
 ) {
 
     override fun getName(): String = fullMethodName.split('.').last()
 
     override fun <T : Annotation> findControllerAnnotation(annotation: Class<T>): Optional<T> =
-        Optional.fromNullable(AnnotationUtils.findAnnotation(instance.javaClass, annotation))
+        Optional.ofNullable(AnnotationUtils.findAnnotation(instance.javaClass, annotation))
 
     override fun declaringClass(): Class<*> = instance.javaClass
 }

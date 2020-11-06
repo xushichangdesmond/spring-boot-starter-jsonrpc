@@ -4,9 +4,9 @@ import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.3.72"
-    kotlin("plugin.spring") version "1.3.72"
-    kotlin("kapt") version "1.3.72"
+    kotlin("jvm") version "1.4.10"
+    kotlin("plugin.spring") version "1.4.10"
+    kotlin("kapt") version "1.4.10"
     id("io.spring.dependency-management") version "1.0.10.RELEASE"
     id("io.gitlab.arturbosch.detekt") version "1.11.1"
 
@@ -16,13 +16,13 @@ plugins {
 }
 
 group = "com.github.krupt"
-version = "1.0.0"
+version = "0.1-parent1.0.0"
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 
 dependencyManagement {
     imports {
         mavenBom("org.springframework.boot:spring-boot-parent:2.3.3.RELEASE") {
-            bomProperty("kotlin.version", "1.3.72")
+            bomProperty("kotlin.version", "1.4.10")
         }
     }
 }
@@ -38,16 +38,18 @@ repositories {
 }
 
 dependencies {
-    api("org.springframework.boot:spring-boot-starter-web")
+    api("org.springframework.boot:spring-boot-starter-webflux")
     api("org.springframework.boot:spring-boot-starter-validation")
     api("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     compileOnly("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    compileOnly("org.springframework.data:spring-data-commons")
     kapt("org.springframework.boot:spring-boot-configuration-processor")
 
-    api("io.springfox:springfox-swagger2:2.9.2")
-    api("io.springfox:springfox-swagger-ui:2.9.2")
+    api("io.springfox:springfox-swagger2:3.0.0")
+    api("io.springfox:springfox-swagger-ui:3.0.0")
+
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.junit.jupiter:junit-jupiter-engine")

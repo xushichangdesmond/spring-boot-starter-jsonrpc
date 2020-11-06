@@ -3,4 +3,4 @@ pluginManagement {
 		gradlePluginPortal()
 	}
 }
-rootProject.name = "spring-boot-starter-jsonrpc"
+rootProject.name = "spring-boot-starter-jsonrpc-webflux"

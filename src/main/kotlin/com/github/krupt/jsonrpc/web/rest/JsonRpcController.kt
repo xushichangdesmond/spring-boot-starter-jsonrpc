@@ -5,24 +5,28 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.github.krupt.jsonrpc.JsonRpcMethod
 import com.github.krupt.jsonrpc.JsonRpcServiceMethodFactory
+import com.github.krupt.jsonrpc.TraceId
 import com.github.krupt.jsonrpc.dto.JsonRpcError
 import com.github.krupt.jsonrpc.dto.JsonRpcRequest
 import com.github.krupt.jsonrpc.dto.JsonRpcResponse
 import com.github.krupt.jsonrpc.exception.JsonRpcExceptionHandler
 import io.swagger.annotations.ApiOperation
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.withContext
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.validation.BindException
 import org.springframework.validation.Validator
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.MethodArgumentNotValidException
-import org.springframework.web.bind.annotation.ExceptionHandler
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Method
+import kotlin.reflect.KFunction
+import kotlin.reflect.KType
+import kotlin.reflect.full.callSuspend
+import kotlin.reflect.jvm.javaType
 
+@ExperimentalStdlibApi
 @RestController
 class JsonRpcController(
     jsonRpcServiceMethodFactory: JsonRpcServiceMethodFactory,
@@ -41,18 +45,15 @@ class JsonRpcController(
                 method,
                 instance
             )
-        } +
-            jsonRpcMethodImpls.mapValues {
-                JsonRpcMethodInvocation(it.value as JsonRpcMethod<Any?, Any?>)
-            }
+        }
 
-    @PostMapping("\${spring.jsonrpc.path:}")
+    @RequestMapping(method = [RequestMethod.GET, RequestMethod.POST], value = ["\${spring.jsonrpc.path:}"])
     @ApiOperation(
         "The endpoint that handles all JSON-RPC requests",
         notes = """Read more about <a href="https://www.jsonrpc.org/specification">JSON-RPC 2.0 Specification</a>"""
     )
     @Suppress("LongMethod", "ReturnCount")
-    fun handle(@RequestBody @Validated request: JsonRpcRequest<Any>): ResponseEntity<JsonRpcResponse<Any>> {
+    suspend fun handle(@RequestBody @Validated request: JsonRpcRequest<Any>): ResponseEntity<JsonRpcResponse<Any>> {
         val method = methods[request.method]
             ?: return buildResponse(
                 request.id,
@@ -103,7 +104,9 @@ class JsonRpcController(
         }
 
         try {
-            val result = method.invoke(params)
+            val result = withContext(currentCoroutineContext() + TraceId(request.id)) {
+                method.invoke(params)
+            }
 
             return buildResponse(
                 request.id,
@@ -179,54 +182,20 @@ interface MethodInvocation {
 
     val inputType: Class<Any>?
 
-    fun invoke(args: Any?): Any?
+    suspend fun invoke(args: Any?): Any?
 }
 
 class ServiceMethodInvocation(
-    private val method: Method,
+    private val method: KFunction<*>,
     private val instance: Any
 ) : MethodInvocation {
 
-    override val inputType = method.parameters.firstOrNull()?.type as Class<Any>?
+    override val inputType =
+            ((method.parameters.drop(1).firstOrNull()?.type as KType?)?.javaType) as Class<Any>?
 
-    init {
-        // For best performance
-        method.isAccessible = true
-    }
-
-    override fun invoke(args: Any?): Any? = if (inputType != null) {
-        method.invoke(instance, args)
+    override suspend fun invoke(args: Any?): Any? = if (inputType != null) {
+        method.callSuspend(instance, args)
     } else {
-        method.invoke(instance)
+        method.callSuspend(instance)
     }
-}
-
-class JsonRpcMethodInvocation(
-    private val instance: JsonRpcMethod<Any?, Any?>
-) : MethodInvocation {
-
-    private val isVoid: Boolean
-
-    override val inputType: Class<Any>?
-
-    init {
-        val inputType = instance.javaClass.methods.first {
-            it.name == "invoke" && !it.isBridge && !it.isSynthetic
-        }
-            .parameters.first().type.takeIf {
-                it != Unit::class.java
-            } as Class<Any>?
-
-        this.inputType = if (inputType == Void::class.java) {
-            isVoid = true
-            null
-        } else {
-            isVoid = false
-            inputType
-        }
-    }
-
-    override fun invoke(args: Any?) =
-        instance.invoke(args ?: if (isVoid) null else Unit)
-            .takeIf { it !is Unit }
 }

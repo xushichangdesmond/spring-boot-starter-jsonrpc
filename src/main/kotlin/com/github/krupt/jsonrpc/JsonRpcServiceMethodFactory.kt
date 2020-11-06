@@ -7,6 +7,11 @@ import org.springframework.beans.factory.ListableBeanFactory
 import org.springframework.stereotype.Component
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import kotlin.coroutines.Continuation
+import kotlin.reflect.KFunction
+import kotlin.reflect.full.functions
+import kotlin.reflect.full.hasAnnotation
+import kotlin.reflect.full.memberFunctions
 
 @Component
 class JsonRpcServiceMethodFactory(
@@ -14,16 +19,19 @@ class JsonRpcServiceMethodFactory(
 ) {
 
     // Map<methodName, jsonRpcMethodDefinition>
+    @ExperimentalStdlibApi
     val methods =
         beanFactory.getBeansWithAnnotation(JsonRpcService::class.java)
             .map {
-                AopUtils.getTargetClass(it.value).methods
-                    .filter { method ->
-                        Modifier.isPublic(method.modifiers) &&
-                            !Modifier.isStatic(method.modifiers) &&
-                            method.parameters.size <= 1 &&
-                            method.declaringClass != Object::class.java &&
-                            !method.isAnnotationPresent(NoJsonRpcMethod::class.java)
+                val t = it.value
+                val k = AopUtils.getTargetClass(it.value)
+                val kc = k.kotlin
+                val f = kc.memberFunctions
+                AopUtils.getTargetClass(it.value).kotlin.memberFunctions
+                    .filter {
+                        it.isSuspend
+                                && it.parameters.size <= 2
+                                && !it.hasAnnotation<NoJsonRpcMethod>()
                     }.map { method ->
                         "${it.key}.${method.name}" to JsonRpcServiceMethodDefinition(it.key, it.value, method)
                     }
@@ -33,5 +41,5 @@ class JsonRpcServiceMethodFactory(
 data class JsonRpcServiceMethodDefinition(
     val beanName: String,
     val beanInstance: Any,
-    val method: Method
+    val method: KFunction<*>
 )

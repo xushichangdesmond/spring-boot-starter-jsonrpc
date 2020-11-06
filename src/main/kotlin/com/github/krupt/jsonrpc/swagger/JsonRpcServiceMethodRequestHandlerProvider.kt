@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component
 import springfox.documentation.RequestHandler
 import springfox.documentation.spi.service.RequestHandlerProvider
 
+@ExperimentalStdlibApi
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Profile("swagger")

@@ -1,6 +1,5 @@
 package com.github.krupt.jsonrpc.config
 
-import com.google.common.base.Predicates
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -25,11 +24,9 @@ class JsonRpcSwaggerAutoConfiguration {
             .useDefaultResponseMessages(false)
             .select()
             .paths(PathSelectors.any())
-            .apis(
-                Predicates.or(
-                    RequestHandlerSelectors.basePackage(JsonRpcConfigurationProperties.JSON_RPC_BASE_PACKAGE),
-                    RequestHandlerSelectors.basePackage(jsonRpcConfigurationProperties.basePackage!!)
-                )
+            .apis(RequestHandlerSelectors.basePackage(JsonRpcConfigurationProperties.JSON_RPC_BASE_PACKAGE).or(
+                        RequestHandlerSelectors.basePackage(jsonRpcConfigurationProperties.basePackage!!)
+                    )
             ).build()
 
     @Bean
@@ -41,8 +38,7 @@ class JsonRpcSwaggerAutoConfiguration {
     ): Docket =
         apiSelectorBuilder
             .apis(
-                Predicates.or(
-                    RequestHandlerSelectors.basePackage(JsonRpcConfigurationProperties.JSON_RPC_BASE_PACKAGE),
+                RequestHandlerSelectors.basePackage(JsonRpcConfigurationProperties.JSON_RPC_BASE_PACKAGE).or(
                     RequestHandlerSelectors.basePackage(jsonRpcConfigurationProperties.basePackage!!)
                 )
             ).build()

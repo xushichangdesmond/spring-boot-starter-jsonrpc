@@ -5,7 +5,8 @@ import javax.validation.constraints.NotBlank
 import javax.validation.constraints.Pattern
 
 data class JsonRpcRequest<T>(
-    val id: Any? = null,
+    @field:NotBlank
+    val id: String,
     @field:NotBlank
     val method: String,
     val params: T?,

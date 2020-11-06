@@ -2,27 +2,34 @@ package com.github.krupt.jsonrpc.swagger
 
 import com.fasterxml.classmate.ResolvedType
 import com.fasterxml.classmate.TypeResolver
-import com.google.common.base.Optional
 import org.springframework.core.annotation.AnnotationUtils
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMethod
 import org.springframework.web.method.HandlerMethod
-import org.springframework.web.servlet.mvc.condition.NameValueExpression
-import org.springframework.web.servlet.mvc.condition.PatternsRequestCondition
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo
+import org.springframework.web.reactive.result.condition.PatternsRequestCondition
+import org.springframework.web.util.pattern.PathPattern
+import org.springframework.web.util.pattern.PathPatternParser
 import springfox.documentation.RequestHandler
 import springfox.documentation.RequestHandlerKey
 import springfox.documentation.service.ResolvedMethodParameter
+import springfox.documentation.spring.web.WebFluxPatternsRequestConditionWrapper
+import springfox.documentation.spring.wrapper.NameValueExpression
+import springfox.documentation.spring.wrapper.RequestMappingInfo
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import java.util.*
+import kotlin.reflect.KFunction
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.jvm.javaMethod
+import kotlin.reflect.jvm.javaType
 
 @Suppress("TooManyFunctions")
 open class JsonRpcServiceMethodRequestHandler(
     private val basePath: String,
     private val beanName: String,
     private val methodName: String,
-    private val method: Method
+    private val method: KFunction<*>
 ) : RequestHandler {
 
     companion object {
@@ -41,10 +48,15 @@ open class JsonRpcServiceMethodRequestHandler(
     }
 
     override fun isAnnotatedWith(annotation: Class<out Annotation>) =
-        AnnotationUtils.findAnnotation(method, annotation) != null
+            method.annotations.firstOrNull {
+                annotation.isInstance(it)
+            } != null
 
     override fun getPatternsCondition() =
-        PatternsRequestCondition("/$basePath/json-rpc/$methodName")
+            WebFluxPatternsRequestConditionWrapper(PatternsRequestCondition(
+                    PathPatternParser.defaultInstance.parse("/$basePath/json-rpc/$methodName")
+            ))
+
 
     override fun groupName() = "[JSON-RPC] $beanName"
 
@@ -61,7 +73,9 @@ open class JsonRpcServiceMethodRequestHandler(
     override fun params(): Set<NameValueExpression<String>> = emptySet()
 
     override fun <T : Annotation> findAnnotation(annotation: Class<T>): Optional<T> =
-        Optional.fromNullable(AnnotationUtils.findAnnotation(method, annotation))
+        Optional.ofNullable(method.annotations.firstOrNull {
+            annotation.isInstance(it)
+        } as T)
 
     override fun key() = RequestHandlerKey(
         patternsCondition.patterns,
@@ -81,25 +95,25 @@ open class JsonRpcServiceMethodRequestHandler(
                 ResolvedMethodParameter(
                     0,
                     it.name,
-                    it.annotations.asList() + requestBodyAnnotation,
-                    typeResolver.resolve(it.type)
+                    it.annotations + requestBodyAnnotation,
+                    typeResolver.resolve(it.type.javaType)
                 )
             )
         } ?: emptyList()
     }
 
     override fun getReturnType(): ResolvedType =
-        typeResolver.resolve(method.genericReturnType)
+        typeResolver.resolve(method.javaMethod!!.genericReturnType)
 
     override fun <T : Annotation> findControllerAnnotation(annotation: Class<T>): Optional<T> =
-        Optional.fromNullable(AnnotationUtils.findAnnotation(method.declaringClass, annotation))
+        Optional.ofNullable(AnnotationUtils.findAnnotation(method.javaMethod!!.declaringClass, annotation))
 
-    override fun declaringClass(): Class<*> = method.declaringClass
+    override fun declaringClass(): Class<*> = method.javaMethod!!.declaringClass
 
     override fun toString() =
         "JsonRpcMethod($methodName)"
 
-    override fun getRequestMapping(): RequestMappingInfo {
+    override fun getRequestMapping(): RequestMappingInfo<Any> {
         throw NotImplementedError("Deprecated")
     }
 
