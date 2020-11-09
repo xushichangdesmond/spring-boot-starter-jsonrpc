@@ -17,6 +17,7 @@ import java.util.UUID
     ServiceWithOnlyHiddenMethods::class,
     TestServiceWithCustomComponentName::class
 ])
+@ExperimentalStdlibApi
 internal class JsonRpcServiceMethodFactoryTest {
 
     @Autowired
@@ -29,8 +30,8 @@ internal class JsonRpcServiceMethodFactoryTest {
 
     @Test
     fun `factory doesn't fail when collecting services without suitable methods`() {
-        jsonRpcServiceMethodFactory.methods.size shouldBe 1
         jsonRpcServiceMethodFactory.methods shouldContainKey "customTestService.test"
+        jsonRpcServiceMethodFactory.methods.size shouldBe 1
     }
 }
 
@@ -41,11 +42,11 @@ class ServiceWithoutMethods
 class ServiceWithOnlyHiddenMethods {
 
     @NoJsonRpcMethod
-    fun hidden(request: TestRequest) {
+    suspend fun hidden(request: TestRequest) {
         // Test
     }
 
-    private fun internal(request: TestRequest) {
+    private suspend fun internal(request: TestRequest) {
         // Test
     }
 }
@@ -57,7 +58,7 @@ class TestServiceWithCustomComponentName {
         val CONSTANT: UUID = UUID.randomUUID()
     }
 
-    fun test(request: TestRequest) {
+    suspend fun test(request: TestRequest) {
         run {
             CONSTANT
         }

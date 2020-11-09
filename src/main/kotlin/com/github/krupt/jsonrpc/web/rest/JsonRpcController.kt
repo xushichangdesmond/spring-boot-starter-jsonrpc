@@ -20,10 +20,16 @@ import org.springframework.validation.Validator
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.reactive.function.client.WebClientResponseException
+import java.lang.StringBuilder
 import java.lang.reflect.InvocationTargetException
+import java.util.regex.Pattern
 import kotlin.reflect.KFunction
 import kotlin.reflect.KType
 import kotlin.reflect.full.callSuspend
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.hasAnnotation
+import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.javaType
 
 @ExperimentalStdlibApi
@@ -54,7 +60,10 @@ class JsonRpcController(
     )
     @Suppress("LongMethod", "ReturnCount")
     suspend fun handle(@RequestBody @Validated request: JsonRpcRequest<Any>): ResponseEntity<JsonRpcResponse<Any>> {
-        val method = methods[request.method]
+        val methodName = request.method.substringBefore("/")
+        val path = "/" + request.method.substringAfter("/", "")
+
+        val method = methods[methodName]
             ?: return buildResponse(
                 request.id,
                 JsonRpcError(JsonRpcError.METHOD_NOT_FOUND, JsonRpcError.METHOD_NOT_FOUND_MESSAGE)
@@ -103,9 +112,11 @@ class JsonRpcController(
             )
         }
 
+        val pathVariables: PathVariablesResolver = createPathVariablesResolver(path, method.method.findAnnotation<RequestMapping>()?.value?.get(0))
+
         try {
             val result = withContext(currentCoroutineContext() + TraceId(request.id)) {
-                method.invoke(params)
+                method.invoke(pathVariables, params)
             }
 
             return buildResponse(
@@ -123,6 +134,39 @@ class JsonRpcController(
                 request.id,
                 exceptionHandler.handle(exception)
             )
+        }
+    }
+
+    private fun createPathVariablesResolver(path: String, mapping: String?): PathVariablesResolver {
+        if (mapping == null) return object: PathVariablesResolver {
+            override fun resolve(name: String): String? = null
+        }
+
+        val nameToGroup = mutableMapOf<String, Int>()
+
+        val matchingPatternStringBuilder = StringBuilder().append("^")
+
+        val m = Pattern.compile("/\\{(.+?)}/").matcher(mapping)
+        var previousMatchEnd = 0
+        var groupIndex = 1
+        while (m.find()) {
+            matchingPatternStringBuilder.append(mapping.substring(previousMatchEnd, m.start(1) - 1))
+            nameToGroup.put(m.group(1), groupIndex)
+            previousMatchEnd = m.end(1) + 1
+            groupIndex++
+            matchingPatternStringBuilder.append("(.+?)")
+        }
+        matchingPatternStringBuilder.append(mapping.substring(previousMatchEnd)).append("$")
+        val p = Pattern.compile(matchingPatternStringBuilder.toString())
+
+        return object: PathVariablesResolver{
+            override fun resolve(name: String): String? {
+                val groupIndex = nameToGroup[name]
+                if (groupIndex == null) return null
+                val m = p.matcher(path)
+                if (!m.matches()) return null
+                return m.group(groupIndex)
+            }
         }
     }
 
@@ -182,20 +226,40 @@ interface MethodInvocation {
 
     val inputType: Class<Any>?
 
-    suspend fun invoke(args: Any?): Any?
+    suspend fun invoke(pathVariables: PathVariablesResolver, args: Any?): Any?
 }
 
 class ServiceMethodInvocation(
-    private val method: KFunction<*>,
+    val method: KFunction<*>,
     private val instance: Any
 ) : MethodInvocation {
 
-    override val inputType =
-            ((method.parameters.drop(1).firstOrNull()?.type as KType?)?.javaType) as Class<Any>?
+    override val inputType: Class<Any>? = method.valueParameters.firstOrNull {
+        it.hasAnnotation<RequestBody>()
+    }?.type?.javaType as Class<Any>?
 
-    override suspend fun invoke(args: Any?): Any? = if (inputType != null) {
-        method.callSuspend(instance, args)
-    } else {
-        method.callSuspend(instance)
+    override suspend fun invoke(pathVariables: PathVariablesResolver, args: Any?): Any? {
+        return method.callSuspend(
+                instance,
+                *method.valueParameters
+                        .map {
+                            if (it.hasAnnotation<RequestBody>()) { args }
+                            else {
+                                val ann = it.findAnnotation<PathVariable>()!!
+                                val resolved = pathVariables.resolve(ann.value)
+                                if (resolved != null) {
+                                    resolved
+                                } else if (ann.required) {
+                                    throw IllegalArgumentException("path variable ${ann.value} required but not provided")
+                                } else {
+                                    Unit
+                                }
+                            }
+                        }.toTypedArray()
+        )
     }
+}
+
+interface PathVariablesResolver {
+    fun resolve(name: String): String?
 }

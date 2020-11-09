@@ -32,7 +32,7 @@ class CustomExceptionHandlingTests {
         val rawResponse = restTemplate.postForEntity<Any>(
             "http://localhost:$port/${jsonRpcConfigurationProperties.path}",
             JsonRpcRequest(
-                123,
+                "123",
                 "testService.reThrowingException",
                 null,
                 "2.0"

@@ -210,14 +210,14 @@ internal class JsonRpcValidationTests {
                         "params": {
                             "name": "   "
                         },
-                        "id": 567,
+                        "id": "567",
                         "jsonrpc": "2.0"
                     }
                 """.trimIndent()
         )!!
 
         assertAll(
-            { response.id shouldBe 567 },
+            { response.id shouldBe "567" },
             { response.result shouldBe null },
             { response.error shouldNotBe null },
             { response.error!!.code shouldBe JsonRpcError.INVALID_PARAMS },

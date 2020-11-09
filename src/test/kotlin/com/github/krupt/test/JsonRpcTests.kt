@@ -8,8 +8,6 @@ import com.github.krupt.jsonrpc.dto.JsonRpcRequest
 import com.github.krupt.jsonrpc.dto.JsonRpcResponse
 import com.github.krupt.test.dto.TestRequest
 import com.github.krupt.test.dto.TestResponse
-import com.github.krupt.test.model.TestPage
-import com.github.krupt.test.model.TestSort
 import com.github.krupt.test.model.TestState
 import com.github.krupt.test.model.TestUser
 import com.ninjasquad.springmockk.MockkBean
@@ -93,36 +91,6 @@ internal class JsonRpcTests {
     }
 
     @Test
-    fun `application calls simple method without id and returns empty response`() {
-        call<Any>(
-            JsonRpcRequest(
-                method = "testService.process",
-                params = TestRequest("krupt"),
-                jsonRpc = "2.0"
-            )
-        ) shouldBe null
-
-        verify {
-            testRunnable.run()
-        }
-    }
-
-    @Test
-    fun `application calls async method without id and returns empty response`() {
-        call<Any>(
-            JsonRpcRequest(
-                method = "testService.processAsync",
-                params = TestRequest("krupt"),
-                jsonRpc = "2.0"
-            )
-        ) shouldBe null
-
-        verify {
-            testRunnable.run()
-        }
-    }
-
-    @Test
     fun `application calls method without parameter and returns empty response`() {
         call<Any>(
             JsonRpcRequest(
@@ -145,7 +113,7 @@ internal class JsonRpcTests {
     fun `application calls method with non-nullable parameter`() {
         call<Any>(
             JsonRpcRequest(
-                123456798,
+                "123456798",
                 "testService.process",
                 null,
                 "2.0"
@@ -164,7 +132,7 @@ internal class JsonRpcTests {
     fun `application calls method that throwing JSON-RPC exception`() {
         call<Any>(
             JsonRpcRequest(
-                1234567,
+                "1234567",
                 "testService.jsonRpcException",
                 TestRequest("krupt"),
                 "2.0"
@@ -183,13 +151,13 @@ internal class JsonRpcTests {
     fun `application calls method that throwing exception`() {
         call<Any>(
             JsonRpcRequest(
-                mapOf("id" to 6709),
+                "6709",
                 "testService.exception",
                 TestRequest("krupt"),
                 "2.0"
             )
         ) shouldBe JsonRpcResponse(
-            mapOf("id" to 6709),
+            "6709",
             error = JsonRpcError(
                 JsonRpcError.INTERNAL_ERROR,
                 "Unhandled exception",
@@ -198,163 +166,7 @@ internal class JsonRpcTests {
         )
     }
 
-    @Test
-    fun `application calls simple method with pageable param and returns result`() {
-        call<TestPage>(
-            JsonRpcRequest(
-                "12345U",
-                "testService.pageable",
-                mapOf(
-                    "page" to "3",
-                    "size" to "43",
-                    "sort" to listOf(
-                        mapOf(
-                            "property" to "name",
-                            "direction" to "DESC"
-                        )
-                    )
-                ),
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "12345U",
-            TestPage(3,
-                43,
-                listOf(
-                    TestSort("name", Sort.Direction.DESC)
-                )
-            )
-        )
-    }
 
-    @Test
-    fun `application calls simple method with wrapped pageable param and returns result`() {
-        call<TestPage>(
-            JsonRpcRequest(
-                "12345U",
-                "testService.pageableWrapper",
-                mapOf(
-                    "name" to "krupt",
-                    "pageable" to mapOf(
-                        "page" to "15",
-                        "size" to "437",
-                        "sort" to listOf(
-                            mapOf(
-                                "property" to "username",
-                                "direction" to "ASC"
-                            )
-                        )
-                    )
-                ),
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "12345U",
-            TestPage(15,
-                437,
-                listOf(
-                    TestSort("username", Sort.Direction.ASC)
-                )
-            )
-        )
-    }
-
-    @Test
-    fun `application calls simple json rpc method with simple param and returns result`() {
-        val testId = UUID.randomUUID()
-        call<TestState>(
-            JsonRpcRequest(
-                "12345U",
-                "method.test",
-                testId,
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "12345U",
-            TestState(testId.toString())
-        )
-    }
-
-    @Test
-    fun `application calls json rpc method without parameter`() {
-        call<TestState>(
-            JsonRpcRequest(
-                "342423324",
-                "method.testMethodWithoutInput",
-                null,
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "342423324",
-            TestState("Test")
-        )
-    }
-
-    @Test
-    fun `application calls json rpc method with empty result`() {
-        call<Any>(
-            JsonRpcRequest(
-                "342423324",
-                "method.testMethodWithoutResult",
-                UUID.randomUUID(),
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "342423324",
-            null
-        )
-    }
-
-    @Test
-    fun `application calls json rpc method that throwing exception`() {
-        call<Any>(
-            JsonRpcRequest(
-                mapOf("id" to 6709),
-                "method.testMethodWithException",
-                "krupt",
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            mapOf("id" to 6709),
-            error = JsonRpcError(
-                -29345,
-                "Test state is incorrect",
-                mapOf(
-                    "userId" to "krupt"
-                )
-            )
-        )
-    }
-
-    @Test
-    fun `application calls java json rpc method without parameter`() {
-        call<TestState>(
-            JsonRpcRequest(
-                "342423324",
-                "method.testJavaMethodWithoutInput",
-                null,
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "342423324",
-            TestState("Test")
-        )
-    }
-
-    @Test
-    fun `application calls java json rpc method with empty result`() {
-        call<Any>(
-            JsonRpcRequest(
-                "342423324",
-                "method.testJavaMethodWithoutResult",
-                UUID.randomUUID(),
-                "2.0"
-            )
-        ) shouldBe JsonRpcResponse(
-            "342423324",
-            null
-        )
-    }
 
     private inline fun <reified R> call(request: JsonRpcRequest<Any>): JsonRpcResponse<R>? {
         val rawResponse: JsonRpcResponse<Map<String, Any?>>? = restTemplate.postForObject(
