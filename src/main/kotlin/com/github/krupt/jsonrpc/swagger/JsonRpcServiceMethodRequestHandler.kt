@@ -75,7 +75,7 @@ open class JsonRpcServiceMethodRequestHandler(
     override fun <T : Annotation> findAnnotation(annotation: Class<T>): Optional<T> =
         Optional.ofNullable(method.annotations.firstOrNull {
             annotation.isInstance(it)
-        } as T)
+        } as T?)
 
     override fun key() = RequestHandlerKey(
         patternsCondition.patterns,
